@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 from idavenv.paths import (
     get_ida_user_dir,
@@ -50,7 +51,7 @@ def test_get_ida_user_dir_linux_default(monkeypatch, tmp_path):
     monkeypatch.delenv("IDAUSR", raising=False)
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     target = get_ida_user_dir(system="linux")
     assert target == (fake_home / ".idapro").resolve()
@@ -61,6 +62,7 @@ def test_get_ida_user_dir_windows_default(monkeypatch, tmp_path):
     fake_appdata = tmp_path / "AppData" / "Roaming"
     fake_appdata.mkdir(parents=True)
     monkeypatch.setenv("APPDATA", str(fake_appdata))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     target = get_ida_user_dir(system="windows")
     assert target == (fake_appdata / "Hex-Rays" / "IDA Pro").resolve()
@@ -70,7 +72,7 @@ def test_get_ida_user_dir_macos_default(monkeypatch, tmp_path):
     monkeypatch.delenv("IDAUSR", raising=False)
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     target = get_ida_user_dir(system="darwin")
     assert target == (fake_home / ".idapro").resolve()

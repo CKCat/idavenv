@@ -168,7 +168,7 @@ def inject_hook(rc_file: Path, venv_path: Path) -> bool:
     )
 
     if pattern.search(existing_content):
-        updated_content = pattern.sub(new_hook_code, existing_content)
+        updated_content = pattern.sub(lambda _: new_hook_code, existing_content)
     else:
         # Append to the end of existing file
         if existing_content and not existing_content.endswith("\n"):
