@@ -1,0 +1,322 @@
+"""Environment backends for creating virtualenvs and installing packages (uv / builtin)."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import venv
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
+
+from idavenv.paths import get_venv_bin_dir, get_venv_python_executable
+
+
+@dataclass
+class ExecutionResult:
+    """Represents the result of an environment or package execution."""
+
+    success: bool
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+class EnvBackend(ABC):
+    """Abstract interface for virtual environment management."""
+
+    @abstractmethod
+    def name(self) -> str:
+        """Returns the backend name."""
+        pass
+
+    @abstractmethod
+    def create_venv(
+        self,
+        venv_dir: Path,
+        python_executable: Optional[str] = None,
+        system_site_packages: bool = False,
+    ) -> ExecutionResult:
+        """Creates a virtual environment at target path."""
+        pass
+
+    @abstractmethod
+    def install_packages(
+        self,
+        venv_dir: Path,
+        packages: Optional[List[str]] = None,
+        requirement_files: Optional[List[str]] = None,
+        upgrade: bool = False,
+    ) -> ExecutionResult:
+        """Installs packages into the target virtual environment."""
+        pass
+
+    @abstractmethod
+    def list_packages(self, venv_dir: Path) -> ExecutionResult:
+        """Lists packages installed in the virtual environment."""
+        pass
+
+    def run_command(
+        self,
+        venv_dir: Path,
+        command: List[str],
+        env_vars: Optional[dict] = None,
+    ) -> ExecutionResult:
+        """Runs a command inside the virtual environment context."""
+        bin_dir = get_venv_bin_dir(venv_dir)
+        env = os.environ.copy()
+        env["VIRTUAL_ENV"] = str(venv_dir.resolve())
+        env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+        if env_vars:
+            env.update(env_vars)
+
+        try:
+            proc = subprocess.run(
+                command,
+                cwd=str(venv_dir),
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+
+class UvBackend(EnvBackend):
+    """Virtualenv and package management backend powered by uv."""
+
+    def __init__(self, uv_path: Optional[str] = None):
+        self._uv_path = uv_path or shutil.which("uv") or "uv"
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Checks if uv is installed and accessible in PATH."""
+        return shutil.which("uv") is not None
+
+    def name(self) -> str:
+        return "uv"
+
+    def create_venv(
+        self,
+        venv_dir: Path,
+        python_executable: Optional[str] = None,
+        system_site_packages: bool = False,
+    ) -> ExecutionResult:
+        venv_dir = Path(venv_dir).resolve()
+        cmd = [self._uv_path, "venv", str(venv_dir)]
+        if python_executable:
+            cmd.extend(["--python", python_executable])
+        if system_site_packages:
+            cmd.append("--system-site-packages")
+
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+    def install_packages(
+        self,
+        venv_dir: Path,
+        packages: Optional[List[str]] = None,
+        requirement_files: Optional[List[str]] = None,
+        upgrade: bool = False,
+    ) -> ExecutionResult:
+        pkg_list = packages or []
+        req_list = requirement_files or []
+        if not pkg_list and not req_list:
+            return ExecutionResult(success=True, returncode=0, stdout="", stderr="")
+
+        python_exe = get_venv_python_executable(venv_dir)
+        cmd = [self._uv_path, "pip", "install", "--python", str(python_exe)]
+        if upgrade:
+            cmd.append("--upgrade")
+        for req in req_list:
+            cmd.extend(["-r", str(req)])
+        cmd.extend(pkg_list)
+
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+    def list_packages(self, venv_dir: Path) -> ExecutionResult:
+        python_exe = get_venv_python_executable(venv_dir)
+        cmd = [self._uv_path, "pip", "list", "--python", str(python_exe)]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+
+class BuiltinBackend(EnvBackend):
+    """Virtualenv and package management backend using Python's standard library venv."""
+
+    def name(self) -> str:
+        return "builtin"
+
+    def create_venv(
+        self,
+        venv_dir: Path,
+        python_executable: Optional[str] = None,
+        system_site_packages: bool = False,
+    ) -> ExecutionResult:
+        venv_dir = Path(venv_dir).resolve()
+        try:
+            if python_executable:
+                cmd = [python_executable, "-m", "venv", str(venv_dir)]
+                if system_site_packages:
+                    cmd.append("--system-site-packages")
+                proc = subprocess.run(cmd, capture_output=True, text=True)
+                return ExecutionResult(
+                    success=(proc.returncode == 0),
+                    returncode=proc.returncode,
+                    stdout=proc.stdout,
+                    stderr=proc.stderr,
+                )
+            else:
+                try:
+                    builder = venv.EnvBuilder(
+                        system_site_packages=system_site_packages,
+                        with_pip=True,
+                    )
+                    builder.create(str(venv_dir))
+                except SystemExit:
+                    # On Debian/Ubuntu without python3-venv, with_pip=True calls sys.exit(1)
+                    builder = venv.EnvBuilder(
+                        system_site_packages=system_site_packages,
+                        with_pip=False,
+                    )
+                    builder.create(str(venv_dir))
+
+                return ExecutionResult(
+                    success=True,
+                    returncode=0,
+                    stdout=f"Virtualenv created at {venv_dir}",
+                    stderr="",
+                )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+    def install_packages(
+        self,
+        venv_dir: Path,
+        packages: Optional[List[str]] = None,
+        requirement_files: Optional[List[str]] = None,
+        upgrade: bool = False,
+    ) -> ExecutionResult:
+        pkg_list = packages or []
+        req_list = requirement_files or []
+        if not pkg_list and not req_list:
+            return ExecutionResult(success=True, returncode=0, stdout="", stderr="")
+
+        python_exe = get_venv_python_executable(venv_dir)
+        cmd = [str(python_exe), "-m", "pip", "install"]
+        if upgrade:
+            cmd.append("--upgrade")
+        for req in req_list:
+            cmd.extend(["-r", str(req)])
+        cmd.extend(pkg_list)
+
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+    def list_packages(self, venv_dir: Path) -> ExecutionResult:
+        python_exe = get_venv_python_executable(venv_dir)
+        cmd = [str(python_exe), "-m", "pip", "list"]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            return ExecutionResult(
+                success=(proc.returncode == 0),
+                returncode=proc.returncode,
+                stdout=proc.stdout,
+                stderr=proc.stderr,
+            )
+        except Exception as exc:
+            return ExecutionResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=str(exc),
+            )
+
+
+def get_backend(preferred: str = "uv") -> EnvBackend:
+    """Returns the requested or best available environment backend.
+
+    Args:
+        preferred: Preferred backend ('uv' or 'builtin').
+
+    Returns:
+        Instance of EnvBackend.
+    """
+    pref = preferred.strip().lower()
+    if pref == "uv":
+        if UvBackend.is_available():
+            return UvBackend()
+        # Fallback to builtin if uv is not available
+        return BuiltinBackend()
+    return BuiltinBackend()

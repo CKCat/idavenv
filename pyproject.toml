@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "idavenv"
+version = "0.1.0"
+description = "Cross-platform automated IDAPython virtual environment management powered by uv"
+readme = "README.md"
+authors = [{ name = "ckcat" }]
+license = { text = "MIT" }
+requires-python = ">=3.8"
+dependencies = []
+keywords = [
+    "ida",
+    "idapro",
+    "idapython",
+    "venv",
+    "virtualenv",
+    "uv",
+    "reverse-engineering",
+    "security",
+    "binary-analysis",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Build Tools",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/ckcat/idavenv"
+
+[project.scripts]
+idavenv = "idavenv.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
