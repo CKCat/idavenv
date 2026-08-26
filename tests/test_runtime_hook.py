@@ -57,12 +57,15 @@ print("SUCCESS")
 
 def test_hook_sys_path_priority(tmp_path):
     venv_dir = tmp_path / "prio_venv"
-    site_dir = (
-        venv_dir
-        / "lib"
-        / f"python{sys.version_info.major}.{sys.version_info.minor}"
-        / "site-packages"
-    )
+    if sys.platform == "win32":
+        site_dir = venv_dir / "Lib" / "site-packages"
+    else:
+        site_dir = (
+            venv_dir
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
     site_dir.mkdir(parents=True)
 
     hook_code = generate_hook_code(venv_path=venv_dir)
@@ -72,8 +75,8 @@ def test_hook_sys_path_priority(tmp_path):
         f"""
 import sys
 
-# Pre-populate sys.path with dummy paths
-sys.path = ["/dummy/ida/scripts", "/usr/lib/python3.10", "/usr/lib/python3/dist-packages"]
+# Prepend dummy script path to sys.path (preserve standard library paths)
+sys.path.insert(0, "/dummy/ida/scripts")
 
 {hook_code}
 
