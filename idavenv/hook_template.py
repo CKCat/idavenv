@@ -8,6 +8,11 @@ from pathlib import Path
 HOOK_START_MARKER = "# >>> IDAPython Virtualenv Hook (managed by idavenv) >>>"
 HOOK_END_MARKER = "# <<< IDAPython Virtualenv Hook (managed by idavenv) <<<"
 
+LEGACY_HOOK_START_MARKER = (
+    "# >>> IDAPython Virtualenv Hook (managed by idavirtualenv) >>>"
+)
+LEGACY_HOOK_END_MARKER = "# <<< IDAPython Virtualenv Hook (managed by idavirtualenv) <<<"
+
 HOOK_TEMPLATE = """{start_marker}
 def _activate_idapython_virtualenv():
     import builtins
@@ -68,7 +73,9 @@ def _activate_idapython_virtualenv():
             try:
                 print(
                     f"[!] IDAPython Warning: Python version mismatch (IDA is {{curr_py_ver}}, "
-                    f"but venv was created for {{', '.join(other_vers)}}).\\n"
+                    f"but venv was created for {{', '.join(other_vers)}})."
+                )
+                print(
                     f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}}' to fix."
                 )
             except Exception:
@@ -138,13 +145,27 @@ def has_hook(rc_file: Path) -> bool:
     if not rc_file.exists():
         return False
     content = rc_file.read_text(encoding="utf-8")
-    return HOOK_START_MARKER in content and HOOK_END_MARKER in content
+    return (HOOK_START_MARKER in content and HOOK_END_MARKER in content) or (
+        LEGACY_HOOK_START_MARKER in content and LEGACY_HOOK_END_MARKER in content
+    )
+
+
+def _strip_legacy_hook(content: str) -> str:
+    """Removes any legacy idavirtualenv hook markers and code."""
+    legacy_pattern = re.compile(
+        re.escape(LEGACY_HOOK_START_MARKER)
+        + r".*?"
+        + re.escape(LEGACY_HOOK_END_MARKER)
+        + r"\n?",
+        re.DOTALL,
+    )
+    return legacy_pattern.sub("", content)
 
 
 def inject_hook(rc_file: Path, venv_path: Path) -> bool:
     """Injects or updates the virtualenv activation hook in idapythonrc.py.
 
-    Preserves any existing user customizations.
+    Preserves any existing user customizations and cleans legacy blocks.
 
     Args:
         rc_file: Path to idapythonrc.py.
@@ -162,18 +183,21 @@ def inject_hook(rc_file: Path, venv_path: Path) -> bool:
 
     existing_content = rc_file.read_text(encoding="utf-8")
 
+    # Clean legacy idavirtualenv hook block if present
+    cleaned_content = _strip_legacy_hook(existing_content)
+
     pattern = re.compile(
         re.escape(HOOK_START_MARKER) + r".*?" + re.escape(HOOK_END_MARKER) + r"\n?",
         re.DOTALL,
     )
 
-    if pattern.search(existing_content):
-        updated_content = pattern.sub(lambda _: new_hook_code, existing_content)
+    if pattern.search(cleaned_content):
+        updated_content = pattern.sub(lambda _: new_hook_code, cleaned_content)
     else:
         # Append to the end of existing file
-        if existing_content and not existing_content.endswith("\n"):
-            existing_content += "\n"
-        updated_content = existing_content + "\n" + new_hook_code
+        if cleaned_content and not cleaned_content.endswith("\n"):
+            cleaned_content += "\n"
+        updated_content = cleaned_content + ("\n" if cleaned_content else "") + new_hook_code
 
     rc_file.write_text(updated_content, encoding="utf-8")
     return True
@@ -192,15 +216,21 @@ def remove_hook(rc_file: Path) -> bool:
         return False
 
     existing_content = rc_file.read_text(encoding="utf-8")
+
+    # Strip both legacy and new hooks
+    content_without_legacy = _strip_legacy_hook(existing_content)
     pattern = re.compile(
         re.escape(HOOK_START_MARKER) + r".*?" + re.escape(HOOK_END_MARKER) + r"\n?",
         re.DOTALL,
     )
 
-    if not pattern.search(existing_content):
+    had_hook = pattern.search(content_without_legacy) is not None or (
+        content_without_legacy != existing_content
+    )
+    if not had_hook:
         return False
 
-    updated_content = pattern.sub("", existing_content).strip()
+    updated_content = pattern.sub("", content_without_legacy).strip()
     if updated_content:
         rc_file.write_text(updated_content + "\n", encoding="utf-8")
     else:
