@@ -11,7 +11,9 @@ HOOK_END_MARKER = "# <<< IDAPython Virtualenv Hook (managed by idavenv) <<<"
 LEGACY_HOOK_START_MARKER = (
     "# >>> IDAPython Virtualenv Hook (managed by idavirtualenv) >>>"
 )
-LEGACY_HOOK_END_MARKER = "# <<< IDAPython Virtualenv Hook (managed by idavirtualenv) <<<"
+LEGACY_HOOK_END_MARKER = (
+    "# <<< IDAPython Virtualenv Hook (managed by idavirtualenv) <<<"
+)
 
 HOOK_TEMPLATE = """{start_marker}
 def _activate_idapython_virtualenv():
@@ -198,7 +200,9 @@ def inject_hook(rc_file: Path, venv_path: Path) -> bool:
         # Append to the end of existing file
         if cleaned_content and not cleaned_content.endswith("\n"):
             cleaned_content += "\n"
-        updated_content = cleaned_content + ("\n" if cleaned_content else "") + new_hook_code
+        updated_content = (
+            cleaned_content + ("\n" if cleaned_content else "") + new_hook_code
+        )
 
     rc_file.write_text(updated_content, encoding="utf-8")
     return True

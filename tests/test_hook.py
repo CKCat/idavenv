@@ -132,4 +132,3 @@ def test_inject_hook_cleans_legacy_idavirtualenv_block(tmp_path):
     assert "managed by idavirtualenv" not in updated
     assert "managed by idavenv" in updated
     assert "print('user preserved')" in updated
-
