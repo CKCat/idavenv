@@ -1,6 +1,6 @@
 """idavenv: Cross-platform automated IDAPython virtualenv management powered by uv."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from idavenv.core import IDAVirtualenvManager, EnvStatus
 from idavenv.paths import (
