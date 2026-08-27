@@ -130,11 +130,12 @@ _activate_idapython_virtualenv()
 
 def generate_hook_code(venv_path: Path) -> str:
     """Generates the full hook source code with markers and absolute path."""
+    posix_path = Path(venv_path).resolve().as_posix()
     return (
         HOOK_TEMPLATE.format(
             start_marker=HOOK_START_MARKER,
             end_marker=HOOK_END_MARKER,
-            default_venv_path=str(Path(venv_path).resolve()),
+            default_venv_path=posix_path,
         ).strip()
         + "\n"
     )

@@ -93,3 +93,43 @@ def test_remove_hook(tmp_path):
     # Removing from non-existent file returns False
     non_existent = tmp_path / "does_not_exist.py"
     assert remove_hook(non_existent) is False
+
+
+def test_hook_code_compiles_under_ast():
+    import ast
+    from pathlib import Path
+
+    test_paths = [
+        Path("/standard/posix/path/to/venv"),
+        Path("C:/Program Files/IDA Pro/venv"),
+        Path("C:\\Users\\runneradmin\\.idapro\\venv"),
+        Path("/path with spaces and 中文/venv"),
+    ]
+
+    for p in test_paths:
+        code = generate_hook_code(p)
+        # Verify it compiles cleanly without any SyntaxError or bad escape
+        parsed = ast.parse(code)
+        assert parsed is not None
+        compiled = compile(code, "<hook_test>", "exec")
+        assert compiled is not None
+
+
+def test_inject_hook_cleans_legacy_idavirtualenv_block(tmp_path):
+    target_file = tmp_path / "idapythonrc.py"
+    legacy_content = (
+        "# >>> IDAPython Virtualenv Hook (managed by idavirtualenv) >>>\n"
+        "# legacy hook code\n"
+        "# <<< IDAPython Virtualenv Hook (managed by idavirtualenv) <<<\n"
+        "print('user preserved')\n"
+    )
+    target_file.write_text(legacy_content, encoding="utf-8")
+
+    assert has_hook(target_file) is True
+    inject_hook(target_file, tmp_path / "new_venv")
+
+    updated = target_file.read_text(encoding="utf-8")
+    assert "managed by idavirtualenv" not in updated
+    assert "managed by idavenv" in updated
+    assert "print('user preserved')" in updated
+
