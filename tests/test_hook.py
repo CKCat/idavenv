@@ -16,7 +16,7 @@ def test_generate_hook_code(tmp_path):
     assert HOOK_END_MARKER in code
     assert "_idapython_venv_initialized" in code
     assert "site.addsitedir" in code
-    assert str(venv_dir.resolve()) in code or str(venv_dir) in code
+    assert venv_dir.resolve().as_posix() in code
 
 
 def test_inject_hook_new_file(tmp_path):
@@ -57,13 +57,13 @@ def test_inject_hook_idempotent_update(tmp_path):
 
     inject_hook(target_file, venv1)
     content1 = target_file.read_text(encoding="utf-8")
-    assert str(venv1.resolve()) in content1
+    assert venv1.resolve().as_posix() in content1
 
     # Inject with new venv
     inject_hook(target_file, venv2)
     content2 = target_file.read_text(encoding="utf-8")
-    assert str(venv2.resolve()) in content2
-    assert str(venv1.resolve()) not in content2
+    assert venv2.resolve().as_posix() in content2
+    assert venv1.resolve().as_posix() not in content2
 
     # Verify marker appears only once
     assert content2.count(HOOK_START_MARKER) == 1
