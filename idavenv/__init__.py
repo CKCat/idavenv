@@ -1,6 +1,12 @@
 """idavenv: Cross-platform automated IDAPython virtualenv management powered by uv."""
 
-__version__ = "0.1.3"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("idavenv")
+except (PackageNotFoundError, ImportError):
+    # Fallback when running from raw source without installation
+    __version__ = "0.1.3"
 
 from idavenv.core import EnvStatus, IDAVirtualenvManager
 from idavenv.env_backend import (
