@@ -163,7 +163,7 @@ uv publish --token <YOUR_PYPI_API_TOKEN>
 
 ## 🧪 自动化测试
 
-项目遵循严格的 TDD 规范，覆盖全部跨平台路径、Hook 注入、DLL 目录、版本诊断、IDA 9.0+ 原生接管检测与 CLI 全功能（54 项测试全部通过）：
+项目遵循严格的 TDD 规范，覆盖全部跨平台路径、Hook 注入、DLL 目录、版本诊断、IDA 9.0+ 原生接管检测与 CLI 全功能（60 项测试全部通过）：
 
 ```bash
 uv run pytest -v

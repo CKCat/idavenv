@@ -265,6 +265,25 @@ def _resolve_python_cmd(python_executable: str) -> Optional[List[str]]:
         if found:
             return [found]
 
+    # Fallback: check if 'python3' or 'python' in PATH matches the requested version
+    for cand_cmd in ("python3", "python"):
+        found_cmd = shutil.which(cand_cmd)
+        if found_cmd:
+            try:
+                proc = subprocess.run(
+                    [
+                        found_cmd,
+                        "-c",
+                        "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                if proc.returncode == 0 and proc.stdout.strip() == python_executable.strip():
+                    return [found_cmd]
+            except Exception:
+                pass
+
     return None
 
 

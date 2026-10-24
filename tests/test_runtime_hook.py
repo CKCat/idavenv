@@ -226,3 +226,33 @@ print("NATIVE_DLL_OK")
     assert "NATIVE_DLL_OK" in proc.stdout
 
 
+def test_hook_runtime_supports_local_lib_posix(tmp_path):
+    venv_dir = tmp_path / "local_posix_venv"
+    curr_py_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    local_site = venv_dir / "local" / "lib" / curr_py_ver / "site-packages"
+    local_site.mkdir(parents=True)
+
+    hook_code = generate_hook_code(venv_path=venv_dir)
+
+    runner_script = tmp_path / "test_local_posix.py"
+    runner_script.write_text(
+        f"""
+import sys
+{hook_code}
+import builtins
+assert getattr(builtins, "_idapython_venv_initialized", False) is True
+found = any(p == str(r"{local_site.resolve()}") for p in sys.path)
+assert found, f"local_site not found in sys.path: {{sys.path}}"
+print("LOCAL_POSIX_OK")
+""",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(runner_script)], capture_output=True, text=True
+    )
+    assert proc.returncode == 0, f"Failed: {proc.stderr}\n{proc.stdout}"
+    assert "LOCAL_POSIX_OK" in proc.stdout
+
+
+

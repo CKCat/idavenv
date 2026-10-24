@@ -54,6 +54,10 @@ def _activate_idapython_virtualenv():
     if posix_site64.exists() and posix_site64 not in site_dirs:
         site_dirs.append(posix_site64)
 
+    local_site = venv_root / "local" / "lib" / curr_py_ver / "site-packages"
+    if local_site.exists() and local_site not in site_dirs:
+        site_dirs.append(local_site)
+
     def _register_dll_dirs(v_root, s_dirs):
         if os.name == "nt" and hasattr(os, "add_dll_directory"):
             _DLL_HANDLES = "_idapython_dll_handles"
