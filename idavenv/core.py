@@ -18,6 +18,7 @@ from idavenv.hook_template import (
     remove_hook,
 )
 from idavenv.paths import (
+    detect_ida_python_path,
     get_ida_user_dir,
     get_venv_python_executable,
     get_venv_site_packages,
@@ -36,6 +37,7 @@ class EnvStatus:
     backend_name: str
     site_packages: List[Path]
     python_executable: Optional[Path]
+    detected_ida_python: Optional[Path] = None
 
 
 class IDAVirtualenvManager:
@@ -81,9 +83,15 @@ class IDAVirtualenvManager:
                 shutil.rmtree(self.venv_dir)
 
         if not self.venv_dir.exists():
+            base_py = python_executable
+            if not base_py:
+                detected_py = detect_ida_python_path()
+                if detected_py:
+                    base_py = str(detected_py)
+
             create_res = self.backend.create_venv(
                 venv_dir=self.venv_dir,
-                python_executable=python_executable,
+                python_executable=base_py,
                 system_site_packages=system_site_packages,
             )
             if not create_res.success:
@@ -117,6 +125,7 @@ class IDAVirtualenvManager:
             backend_name=self.backend.name(),
             site_packages=site_packages,
             python_executable=python_executable,
+            detected_ida_python=detect_ida_python_path(),
         )
 
     def install_packages(

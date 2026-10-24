@@ -152,3 +152,65 @@ def get_venv_python_executable(venv_dir: Path, system: Optional[str] = None) -> 
     if target_system.startswith("win"):
         return bin_dir / "python.exe"
     return bin_dir / "python"
+
+
+def detect_ida_python_path(system: Optional[str] = None) -> Optional[Path]:
+    """Detects the Python executable or DLL configured for IDA Pro.
+
+    Resolution order:
+    1. IDAPYTHON_VENV_EXECUTABLE environment variable (native in IDA 9.0+).
+    2. IDA_PYTHON_EXE or IDA_PYTHON_DLL environment variable.
+    3. Windows Registry (HKCU/HKLM -> Software\\Hex-Rays\\IDA -> Python3TargetDLL).
+
+    Returns:
+        Path to Python executable/DLL if detected, else None.
+    """
+    target_system = (system or sys.platform).lower()
+
+    # 1. Environment variables
+    for env_var in ("IDAPYTHON_VENV_EXECUTABLE", "IDA_PYTHON_EXE"):
+        val = os.environ.get(env_var)
+        if val:
+            p = Path(val).expanduser().resolve()
+            if p.exists():
+                return p
+
+    val_dll = os.environ.get("IDA_PYTHON_DLL")
+    if val_dll:
+        p = Path(val_dll).expanduser().resolve()
+        if p.exists():
+            cand_exe = p.parent / "python.exe"
+            if cand_exe.exists():
+                return cand_exe
+            return p
+
+    # 2. Windows registry
+    if target_system.startswith("win"):
+        try:
+            import winreg
+
+            subkeys = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Hex-Rays\IDA"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Hex-Rays\IDA"),
+            ]
+            for hkey, subkey in subkeys:
+                try:
+                    with winreg.OpenKey(hkey, subkey) as key:
+                        val, _ = winreg.QueryValueEx(key, "Python3TargetDLL")
+                        if val:
+                            dll_path = Path(val).expanduser().resolve()
+                            if dll_path.exists():
+                                cand_exe = dll_path.parent / "python.exe"
+                                if cand_exe.exists():
+                                    return cand_exe
+                                cand_exe_parent = dll_path.parent.parent / "python.exe"
+                                if cand_exe_parent.exists():
+                                    return cand_exe_parent
+                                return dll_path
+                except OSError:
+                    continue
+        except ImportError:
+            pass
+
+    return None
+

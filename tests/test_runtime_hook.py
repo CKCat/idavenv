@@ -120,3 +120,66 @@ import sys
     )
     assert proc.returncode == 0
     assert "Python version mismatch" in proc.stdout or "Warning" in proc.stdout
+
+
+def test_hook_retains_dll_handles_on_windows(tmp_path):
+    venv_dir = tmp_path / "dll_venv"
+    site_dir = venv_dir / "Lib" / "site-packages"
+    site_dir.mkdir(parents=True)
+    scripts_dir = venv_dir / "Scripts"
+    scripts_dir.mkdir(parents=True)
+
+    hook_code = generate_hook_code(venv_path=venv_dir)
+
+    runner_script = tmp_path / "test_dll_handle.py"
+    runner_script.write_text(
+        f"""
+import sys
+import builtins
+import os
+
+{hook_code}
+
+if os.name == "nt" and hasattr(os, "add_dll_directory"):
+    handles = getattr(builtins, "_idapython_dll_handles", None)
+    assert handles is not None, "_idapython_dll_handles should exist in builtins"
+    assert len(handles) > 0, "DLL handles list should not be empty"
+print("DLL_HANDLES_OK")
+""",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(runner_script)], capture_output=True, text=True
+    )
+    assert proc.returncode == 0, f"Failed: {proc.stderr}\n{proc.stdout}"
+    assert "DLL_HANDLES_OK" in proc.stdout
+
+
+def test_hook_version_mismatch_windows_pyvenv_cfg(tmp_path):
+    venv_dir = tmp_path / "win_mismatch_venv"
+    site_dir = venv_dir / "Lib" / "site-packages"
+    site_dir.mkdir(parents=True)
+    (venv_dir / "pyvenv.cfg").write_text(
+        "home = C:\\Fake\\Python310\nversion_info = 3.10.0\n", encoding="utf-8"
+    )
+
+    hook_code = generate_hook_code(venv_path=venv_dir)
+
+    runner_script = tmp_path / "test_win_mismatch.py"
+    runner_script.write_text(
+        f"""
+import sys
+{hook_code}
+""",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(runner_script)], capture_output=True, text=True
+    )
+    assert proc.returncode == 0
+    # Current runner is not 3.10, so it should warn about version mismatch
+    if (sys.version_info.major, sys.version_info.minor) != (3, 10):
+        assert "Python version mismatch" in proc.stdout, f"Expected mismatch warning, got: {proc.stdout}"
+

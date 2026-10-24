@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 from idavenv.paths import (
+    detect_ida_python_path,
     get_ida_user_dir,
     get_venv_bin_dir,
     get_venv_python_executable,
@@ -142,3 +143,23 @@ def test_get_venv_site_packages_local_lib(tmp_path):
 
     found = get_venv_site_packages(venv_dir)
     assert site_pkg.resolve() in [p.resolve() for p in found]
+
+
+def test_detect_ida_python_from_env(monkeypatch, tmp_path):
+    fake_exe = tmp_path / "python.exe"
+    fake_exe.touch()
+    monkeypatch.setenv("IDAPYTHON_VENV_EXECUTABLE", str(fake_exe))
+
+    detected = detect_ida_python_path()
+    assert detected == fake_exe.resolve()
+
+
+def test_detect_ida_python_returns_none_when_nothing(monkeypatch):
+    monkeypatch.delenv("IDAPYTHON_VENV_EXECUTABLE", raising=False)
+    monkeypatch.delenv("IDA_PYTHON_EXE", raising=False)
+    monkeypatch.delenv("IDA_PYTHON_DLL", raising=False)
+
+    # Mock winreg if on windows or pass system="linux"
+    detected = detect_ida_python_path(system="linux")
+    assert detected is None
+

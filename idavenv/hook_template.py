@@ -59,7 +59,37 @@ def _activate_idapython_virtualenv():
     if posix_site64.exists() and posix_site64 not in site_dirs:
         site_dirs.append(posix_site64)
 
-    # Check for version mismatch if no exact site-packages found
+    # Check pyvenv.cfg for version mismatch (especially critical on Windows where Lib/site-packages lacks version in path)
+    cfg_file = venv_root / "pyvenv.cfg"
+    venv_py_ver = None
+    if cfg_file.exists():
+        try:
+            for line in cfg_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+                line = line.strip()
+                if line.startswith("version_info") or line.startswith("version"):
+                    parts = line.split("=", 1)
+                    if len(parts) == 2:
+                        val = parts[1].strip()
+                        ver_nums = [p.strip() for p in val.split(".") if p.strip().isdigit()]
+                        if len(ver_nums) >= 2:
+                            venv_py_ver = f"python{{ver_nums[0]}}.{{ver_nums[1]}}"
+                            break
+        except Exception:
+            pass
+
+    if venv_py_ver and venv_py_ver != curr_py_ver:
+        try:
+            print(
+                f"[!] IDAPython Warning: Python version mismatch (IDA is {{curr_py_ver}}, "
+                f"but venv was created for {{venv_py_ver}})."
+            )
+            print(
+                f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}}' to fix."
+            )
+        except Exception:
+            pass
+
+    # Check for version mismatch on POSIX if no exact site-packages found
     if not site_dirs:
         other_vers = []
         lib_dir = venv_root / "lib"
@@ -71,7 +101,7 @@ def _activate_idapython_virtualenv():
                     if cand.exists():
                         site_dirs.append(cand)
 
-        if other_vers and curr_py_ver not in other_vers:
+        if other_vers and curr_py_ver not in other_vers and not venv_py_ver:
             try:
                 print(
                     f"[!] IDAPython Warning: Python version mismatch (IDA is {{curr_py_ver}}, "
@@ -111,13 +141,34 @@ def _activate_idapython_virtualenv():
 
         # Windows Python 3.8+ DLL directory resolution for C extensions (e.g. z3, unicorn)
         if os.name == "nt" and hasattr(os, "add_dll_directory"):
-            try:
-                os.add_dll_directory(str(bin_dir))
-                for s_dir in site_dirs:
-                    if s_dir.exists():
-                        os.add_dll_directory(str(s_dir))
-            except Exception:
-                pass
+            _DLL_HANDLES = "_idapython_dll_handles"
+            if not hasattr(builtins, _DLL_HANDLES):
+                setattr(builtins, _DLL_HANDLES, [])
+            handles = getattr(builtins, _DLL_HANDLES)
+
+            def _safe_add_dll_dir(p):
+                try:
+                    h = os.add_dll_directory(str(p))
+                    handles.append(h)
+                except Exception:
+                    pass
+
+            if bin_dir.exists():
+                _safe_add_dll_dir(bin_dir)
+            for s_dir in site_dirs:
+                if s_dir.exists():
+                    _safe_add_dll_dir(s_dir)
+                    try:
+                        for sub in s_dir.iterdir():
+                            if sub.is_dir():
+                                sub_lib = sub / "lib"
+                                if sub_lib.is_dir():
+                                    _safe_add_dll_dir(sub_lib)
+                                sub_bin = sub / "bin"
+                                if sub_bin.is_dir():
+                                    _safe_add_dll_dir(sub_bin)
+                    except Exception:
+                        pass
 
     setattr(builtins, _SENTINEL, True)
     try:

@@ -77,3 +77,29 @@ def test_manager_operations_before_init(tmp_path):
     assert manager.list_packages().success is False
     assert manager.install_packages(["some_pkg"]).success is False
     assert manager.run_command(["python"]).success is False
+
+
+def test_manager_init_uses_detected_ida_python(tmp_path, monkeypatch):
+    ida_dir = tmp_path / "ida_user"
+    ida_dir.mkdir()
+    fake_python = tmp_path / "ida_python.exe"
+    fake_python.touch()
+
+    # Mock detect_ida_python_path
+    monkeypatch.setattr(
+        "idavenv.core.detect_ida_python_path", lambda: fake_python
+    )
+
+    manager = IDAVirtualenvManager(ida_dir=ida_dir, backend_name="builtin")
+    recorded_python = []
+
+    def fake_create_venv(venv_dir, python_executable=None, system_site_packages=False):
+        recorded_python.append(python_executable)
+        from idavenv.env_backend import ExecutionResult
+        return ExecutionResult(success=True, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(manager.backend, "create_venv", fake_create_venv)
+    manager.init()
+
+    assert recorded_python == [str(fake_python)]
+

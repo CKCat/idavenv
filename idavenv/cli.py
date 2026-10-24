@@ -188,6 +188,8 @@ def main(args: Optional[List[str]] = None) -> int:
         print(f"Virtualenv Path     : {status.venv_dir}")
         print(f"Virtualenv Exists   : {'Yes' if status.venv_exists else 'No'}")
         print(f"Active Backend      : {status.backend_name}")
+        if status.detected_ida_python:
+            print(f"Detected IDA Python : {status.detected_ida_python}")
         if status.python_executable:
             print(f"Python Executable   : {status.python_executable}")
         if status.site_packages:
