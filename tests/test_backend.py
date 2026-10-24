@@ -107,3 +107,28 @@ def test_builtin_backend_version_string_handling(tmp_path):
     assert "99.99" in result.stderr
 
 
+def test_resolve_python_cmd_matches_python3_when_version_matches(monkeypatch):
+    import shutil
+    import subprocess
+    from idavenv.env_backend import _resolve_python_cmd
+
+    # Simulate environment where python3.12 doesn't exist, but python3 exists and is 3.12
+    def mock_which(cmd):
+        if cmd == "python3":
+            return "/usr/bin/python3"
+        return None
+
+    monkeypatch.setattr(shutil, "which", mock_which)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], returncode=0, stdout="3.12\n"
+        ),
+    )
+
+    resolved = _resolve_python_cmd("3.12")
+    assert resolved == ["/usr/bin/python3"]
+
+
+
