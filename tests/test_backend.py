@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from idavenv.env_backend import (
@@ -57,8 +59,10 @@ def test_backend_run_command(tmp_path):
     assert result.success is True
     assert "HELLO_RUN" in result.stdout
     from idavenv.paths import get_venv_python_executable
-    expected_py = get_venv_python_executable(venv_dir).resolve()
+    expected_py = get_venv_python_executable(venv_dir)
     assert str(expected_py).lower() in result.stdout.lower()
+    actual_py = Path(result.stdout.strip().splitlines()[-1])
+    assert actual_py.resolve() == expected_py.resolve()
 
 
 def test_backend_list_packages(tmp_path):
