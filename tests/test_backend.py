@@ -96,3 +96,14 @@ def test_uv_backend_finds_uv_in_fallback_dir(monkeypatch, tmp_path):
     backend = UvBackend()
     assert backend._uv_path == str(fake_uv)
 
+
+def test_builtin_backend_version_string_handling(tmp_path):
+    backend = BuiltinBackend()
+    venv_dir = tmp_path / "builtin_ver_venv"
+
+    # When given a non-existent version string like "99.99"
+    result = backend.create_venv(venv_dir, python_executable="99.99")
+    assert result.success is False
+    assert "99.99" in result.stderr
+
+

@@ -183,3 +183,46 @@ import sys
     if (sys.version_info.major, sys.version_info.minor) != (3, 10):
         assert "Python version mismatch" in proc.stdout, f"Expected mismatch warning, got: {proc.stdout}"
 
+
+def test_hook_registers_dll_handles_even_in_ida9_native_mode(tmp_path):
+    venv_dir = tmp_path / "native_dll_venv"
+    venv_dir.mkdir(parents=True)
+    bin_dir = venv_dir / ("Scripts" if sys.platform == "win32" else "bin")
+    bin_dir.mkdir(parents=True)
+    site_dir = venv_dir / ("Lib" if sys.platform == "win32" else "lib") / "site-packages"
+    site_dir.mkdir(parents=True)
+
+    hook_code = generate_hook_code(venv_path=venv_dir)
+
+    runner_script = tmp_path / "test_native_dll.py"
+    runner_script.write_text(
+        f"""
+import sys
+import os
+import builtins
+from pathlib import Path
+
+# Simulate IDA 9.0+ native C level environment:
+# sys.prefix is already set to venv_dir by IDA C-level detect_venv()
+sys.prefix = str(r"{venv_dir.resolve()}")
+
+{hook_code}
+
+assert getattr(builtins, "_idapython_venv_initialized", False) is True
+
+if os.name == "nt" and hasattr(os, "add_dll_directory"):
+    handles = getattr(builtins, "_idapython_dll_handles", None)
+    assert handles is not None, "DLL handles should exist even in native mode"
+    assert len(handles) > 0, "DLL handles should not be empty in native mode"
+print("NATIVE_DLL_OK")
+""",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [sys.executable, str(runner_script)], capture_output=True, text=True
+    )
+    assert proc.returncode == 0, f"Failed: {proc.stderr}\n{proc.stdout}"
+    assert "NATIVE_DLL_OK" in proc.stdout
+
+

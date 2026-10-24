@@ -15,6 +15,34 @@ def _extract_py_version_from_dll(dll_path: Path) -> Optional[str]:
     m = re.search(r"python(\d)(\d+)", stem)
     if m:
         return f"{m.group(1)}.{m.group(2)}"
+
+    # If it is python3.dll, extract real version from Windows PE version resource
+    if stem == "python3" and sys.platform == "win32" and dll_path.exists():
+        try:
+            import ctypes
+            import struct
+            from ctypes import wintypes
+
+            size = ctypes.windll.version.GetFileVersionInfoSizeW(str(dll_path), None)
+            if size > 0:
+                res = ctypes.create_string_buffer(size)
+                if ctypes.windll.version.GetFileVersionInfoW(
+                    str(dll_path), 0, size, res
+                ):
+                    ptr = ctypes.c_void_p()
+                    u_len = wintypes.UINT()
+                    if ctypes.windll.version.VerQueryValueW(
+                        res, "\\", ctypes.byref(ptr), ctypes.byref(u_len)
+                    ):
+                        buf = (ctypes.c_char * 8).from_address(ptr.value + 8)
+                        ms, _ = struct.unpack("II", buf.raw)
+                        major = ms >> 16
+                        minor = ms & 0xFFFF
+                        if major > 0:
+                            return f"{major}.{minor}"
+        except Exception:
+            pass
+
     return None
 
 
