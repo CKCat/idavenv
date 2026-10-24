@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
+
+
+def _extract_py_version_from_dll(dll_path: Path) -> Optional[str]:
+    """Extracts Python major.minor version from a python DLL filename (e.g. python314.dll -> 3.14)."""
+    stem = dll_path.stem.lower()
+    m = re.search(r"python(\d)(\d+)", stem)
+    if m:
+        return f"{m.group(1)}.{m.group(2)}"
+    return None
 
 
 def get_ida_user_dir(system: Optional[str] = None) -> Path:
@@ -154,8 +164,8 @@ def get_venv_python_executable(venv_dir: Path, system: Optional[str] = None) -> 
     return bin_dir / "python"
 
 
-def detect_ida_python_path(system: Optional[str] = None) -> Optional[Path]:
-    """Detects the Python executable or DLL configured for IDA Pro.
+def detect_ida_python_path(system: Optional[str] = None) -> Optional[Union[Path, str]]:
+    """Detects the Python executable or version string configured for IDA Pro.
 
     Resolution order:
     1. IDAPYTHON_VENV_EXECUTABLE environment variable (native in IDA 9.0+).
@@ -163,7 +173,7 @@ def detect_ida_python_path(system: Optional[str] = None) -> Optional[Path]:
     3. Windows Registry (HKCU/HKLM -> Software\\Hex-Rays\\IDA -> Python3TargetDLL).
 
     Returns:
-        Path to Python executable/DLL if detected, else None.
+        Path to Python executable or version string (e.g. '3.14') if detected, else None.
     """
     target_system = (system or sys.platform).lower()
 
@@ -182,7 +192,8 @@ def detect_ida_python_path(system: Optional[str] = None) -> Optional[Path]:
             cand_exe = p.parent / "python.exe"
             if cand_exe.exists():
                 return cand_exe
-            return p
+            ver = _extract_py_version_from_dll(p)
+            return ver if ver else None
 
     # 2. Windows registry
     if target_system.startswith("win"):
@@ -206,7 +217,8 @@ def detect_ida_python_path(system: Optional[str] = None) -> Optional[Path]:
                                 cand_exe_parent = dll_path.parent.parent / "python.exe"
                                 if cand_exe_parent.exists():
                                     return cand_exe_parent
-                                return dll_path
+                                ver = _extract_py_version_from_dll(dll_path)
+                                return ver if ver else None
                 except OSError:
                     continue
         except ImportError:

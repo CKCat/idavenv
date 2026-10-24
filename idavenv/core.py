@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from idavenv.env_backend import (
     EnvBackend,
@@ -37,7 +37,7 @@ class EnvStatus:
     backend_name: str
     site_packages: List[Path]
     python_executable: Optional[Path]
-    detected_ida_python: Optional[Path] = None
+    detected_ida_python: Optional[Union[Path, str]] = None
 
 
 class IDAVirtualenvManager:
@@ -167,12 +167,14 @@ class IDAVirtualenvManager:
             remove_venv: If True, completely deletes the virtual environment directory.
 
         Returns:
-            True if uninstalled successfully.
+            True if hook was removed or virtualenv was deleted.
         """
         removed = remove_hook(self.rc_file)
+        venv_cleaned = False
         if remove_venv and self.venv_dir.exists():
             shutil.rmtree(self.venv_dir)
-        return removed
+            venv_cleaned = True
+        return removed or venv_cleaned
 
     def run_command(self, command: List[str]) -> ExecutionResult:
         """Runs an arbitrary command inside the virtual environment context."""

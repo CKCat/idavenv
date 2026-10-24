@@ -103,3 +103,17 @@ def test_manager_init_uses_detected_ida_python(tmp_path, monkeypatch):
 
     assert recorded_python == [str(fake_python)]
 
+
+def test_uninstall_returns_true_if_venv_removed_even_without_hook(tmp_path):
+    ida_dir = tmp_path / "ida_user"
+    ida_dir.mkdir()
+    venv_dir = ida_dir / "venv"
+    venv_dir.mkdir()
+
+    manager = IDAVirtualenvManager(ida_dir=ida_dir, venv_dir=venv_dir)
+    # Notice: idapythonrc.py does not exist or has no hook
+    res = manager.uninstall(remove_venv=True)
+    assert res is True
+    assert not venv_dir.exists()
+
+

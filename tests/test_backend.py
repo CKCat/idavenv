@@ -74,3 +74,22 @@ def test_backend_empty_packages(tmp_path):
 
     result = backend.install_packages(venv_dir, [])
     assert result.success is True
+
+
+def test_uv_backend_finds_uv_in_fallback_dir(monkeypatch, tmp_path):
+    import shutil
+    # Simulate shutil.which("uv") returning None
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+
+    fake_uv = tmp_path / ".local" / "bin" / ("uv.exe" if pytest.importorskip("sys").platform == "win32" else "uv")
+    fake_uv.parent.mkdir(parents=True)
+    fake_uv.touch()
+
+    monkeypatch.setattr(
+        "idavenv.env_backend.get_user_fallback_uv_paths", lambda: [fake_uv]
+    )
+
+    assert UvBackend.is_available() is True
+    backend = UvBackend()
+    assert backend._uv_path == str(fake_uv)
+

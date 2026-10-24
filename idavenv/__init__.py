@@ -22,6 +22,7 @@ from idavenv.hook_template import (
     remove_hook,
 )
 from idavenv.paths import (
+    detect_ida_python_path,
     get_ida_user_dir,
     get_venv_bin_dir,
     get_venv_python_executable,
@@ -32,6 +33,7 @@ __all__ = [
     "__version__",
     "IDAVirtualenvManager",
     "EnvStatus",
+    "detect_ida_python_path",
     "get_ida_user_dir",
     "get_venv_site_packages",
     "get_venv_python_executable",

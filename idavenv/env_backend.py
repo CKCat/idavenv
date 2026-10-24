@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import venv
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -12,6 +13,17 @@ from pathlib import Path
 from typing import List, Optional
 
 from idavenv.paths import get_venv_bin_dir, get_venv_python_executable
+
+
+def get_user_fallback_uv_paths() -> List[Path]:
+    """Returns candidate fallback paths for uv binary in user directories."""
+    home = Path.home()
+    is_win = sys.platform == "win32"
+    exe_name = "uv.exe" if is_win else "uv"
+    return [
+        home / ".local" / "bin" / exe_name,
+        home / ".cargo" / "bin" / exe_name,
+    ]
 
 
 @dataclass
@@ -99,12 +111,26 @@ class UvBackend(EnvBackend):
     """Virtualenv and package management backend powered by uv."""
 
     def __init__(self, uv_path: Optional[str] = None):
-        self._uv_path = uv_path or shutil.which("uv") or "uv"
+        if uv_path:
+            self._uv_path = uv_path
+        else:
+            found = shutil.which("uv")
+            if not found:
+                for cand in get_user_fallback_uv_paths():
+                    if cand.exists():
+                        found = str(cand)
+                        break
+            self._uv_path = found or "uv"
 
     @classmethod
     def is_available(cls) -> bool:
-        """Checks if uv is installed and accessible in PATH."""
-        return shutil.which("uv") is not None
+        """Checks if uv is installed and accessible in PATH or user fallback dirs."""
+        if shutil.which("uv") is not None:
+            return True
+        for cand in get_user_fallback_uv_paths():
+            if cand.exists():
+                return True
+        return False
 
     def name(self) -> str:
         return "uv"
@@ -233,6 +259,12 @@ class BuiltinBackend(EnvBackend):
                         with_pip=False,
                     )
                     builder.create(str(venv_dir))
+                    return ExecutionResult(
+                        success=True,
+                        returncode=0,
+                        stdout=f"Virtualenv created at {venv_dir} (without pip: ensurepip/python3-venv unavailable)",
+                        stderr="Warning: ensurepip is unavailable; packages cannot be installed via pip without installing pip first.",
+                    )
 
                 return ExecutionResult(
                     success=True,

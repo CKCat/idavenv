@@ -163,3 +163,20 @@ def test_detect_ida_python_returns_none_when_nothing(monkeypatch):
     detected = detect_ida_python_path(system="linux")
     assert detected is None
 
+
+def test_detect_ida_python_dll_fallback_version(monkeypatch, tmp_path):
+    dll_file = tmp_path / "python314.dll"
+    dll_file.touch()
+    monkeypatch.setenv("IDA_PYTHON_DLL", str(dll_file))
+
+    # There is no python.exe nearby, should extract version "3.14" instead of returning dll Path
+    detected = detect_ida_python_path()
+    assert detected == "3.14"
+
+
+def test_init_exports_detect_ida_python():
+    import idavenv
+    assert hasattr(idavenv, "detect_ida_python_path")
+    assert "detect_ida_python_path" in idavenv.__all__
+
+
