@@ -117,3 +117,21 @@ def test_uninstall_returns_true_if_venv_removed_even_without_hook(tmp_path):
     assert not venv_dir.exists()
 
 
+def test_env_status_ida9_native_detection(tmp_path, monkeypatch):
+    ida_dir = tmp_path / "ida_user"
+    ida_dir.mkdir()
+    manager = IDAVirtualenvManager(ida_dir=ida_dir, backend_name="builtin")
+    manager.init()
+
+    # When IDAPYTHON_VENV_EXECUTABLE is not set
+    monkeypatch.delenv("IDAPYTHON_VENV_EXECUTABLE", raising=False)
+    status = manager.status()
+    assert status.is_ida9_native is False
+
+    # When IDAPYTHON_VENV_EXECUTABLE points to venv python executable
+    monkeypatch.setenv("IDAPYTHON_VENV_EXECUTABLE", str(status.python_executable))
+    status2 = manager.status()
+    assert status2.is_ida9_native is True
+
+
+

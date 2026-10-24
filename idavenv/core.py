@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,7 @@ class EnvStatus:
     site_packages: List[Path]
     python_executable: Optional[Path]
     detected_ida_python: Optional[Union[Path, str]] = None
+    is_ida9_native: bool = False
 
 
 class IDAVirtualenvManager:
@@ -116,6 +118,17 @@ class IDAVirtualenvManager:
             get_venv_python_executable(self.venv_dir) if venv_exists else None
         )
 
+        env_override = os.environ.get("IDAPYTHON_VENV_EXECUTABLE")
+        is_ida9_native = False
+        if env_override and python_executable:
+            try:
+                is_ida9_native = (
+                    Path(env_override).expanduser().resolve()
+                    == python_executable.resolve()
+                )
+            except Exception:
+                pass
+
         return EnvStatus(
             ida_dir=self.ida_dir,
             rc_file=self.rc_file,
@@ -126,6 +139,7 @@ class IDAVirtualenvManager:
             site_packages=site_packages,
             python_executable=python_executable,
             detected_ida_python=detect_ida_python_path(),
+            is_ida9_native=is_ida9_native,
         )
 
     def install_packages(

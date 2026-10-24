@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from idavenv import __version__
 from idavenv.core import IDAVirtualenvManager
+from idavenv.paths import get_venv_python_executable
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -169,6 +170,12 @@ def main(args: Optional[List[str]] = None) -> int:
         if res.success:
             print(f"[+] {res.stdout}")
             print(f"[+] IDA configuration: {manager.rc_file}")
+            if manager.venv_dir.exists():
+                py_exe = get_venv_python_executable(manager.venv_dir)
+                print(
+                    f"[+] IDA 9.0+ Native tip: To enable C-level native virtualenv loading across all shortcuts, set:"
+                )
+                print(f"    IDAPYTHON_VENV_EXECUTABLE={py_exe}")
             print(
                 "[+] Done! IDAPython will now automatically load this virtualenv on IDA startup."
             )
@@ -188,6 +195,12 @@ def main(args: Optional[List[str]] = None) -> int:
         print(f"Virtualenv Path     : {status.venv_dir}")
         print(f"Virtualenv Exists   : {'Yes' if status.venv_exists else 'No'}")
         print(f"Active Backend      : {status.backend_name}")
+        native_str = (
+            "Active (via IDAPYTHON_VENV_EXECUTABLE)"
+            if status.is_ida9_native
+            else "Available (set IDAPYTHON_VENV_EXECUTABLE)"
+        )
+        print(f"IDA 9.0+ Native     : {native_str}")
         if status.detected_ida_python:
             print(f"Detected IDA Python : {status.detected_ida_python}")
         if status.python_executable:

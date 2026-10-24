@@ -90,3 +90,18 @@ def test_cli_install_requirement_file(tmp_path, capsys):
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "installed successfully" in captured.out
+
+
+def test_cli_info_and_init_shows_ida9_details(tmp_path, capsys):
+    ida_dir = tmp_path / "cli_ida9"
+    ida_dir.mkdir()
+
+    exit_code = main(["init", "--backend", "builtin", "--ida-dir", str(ida_dir)])
+    assert exit_code == 0
+    init_out = capsys.readouterr().out
+    assert "IDAPYTHON_VENV_EXECUTABLE" in init_out
+
+    exit_code = main(["info", "--ida-dir", str(ida_dir)])
+    assert exit_code == 0
+    info_out = capsys.readouterr().out
+    assert "IDA 9.0+ Native" in info_out
