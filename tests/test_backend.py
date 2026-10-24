@@ -52,10 +52,13 @@ def test_backend_run_command(tmp_path):
     backend.create_venv(venv_dir)
 
     result = backend.run_command(
-        venv_dir, ["python", "-c", "import sys; print('HELLO_RUN')"]
+        venv_dir, ["python", "-c", "import sys; print('HELLO_RUN'); print(sys.executable)"]
     )
     assert result.success is True
     assert "HELLO_RUN" in result.stdout
+    from idavenv.paths import get_venv_python_executable
+    expected_py = get_venv_python_executable(venv_dir).resolve()
+    assert str(expected_py).lower() in result.stdout.lower()
 
 
 def test_backend_list_packages(tmp_path):

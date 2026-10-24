@@ -84,9 +84,20 @@ class EnvBackend(ABC):
         if env_vars:
             env.update(env_vars)
 
+        # Resolve executable inside virtualenv bin_dir to prevent Windows PATH shadowing
+        actual_cmd = list(command)
+        if actual_cmd:
+            exe = actual_cmd[0]
+            cand = bin_dir / exe
+            cand_exe = bin_dir / f"{exe}.exe"
+            if cand.is_file():
+                actual_cmd[0] = str(cand)
+            elif sys.platform == "win32" and cand_exe.is_file():
+                actual_cmd[0] = str(cand_exe)
+
         try:
             proc = subprocess.run(
-                command,
+                actual_cmd,
                 cwd=str(venv_dir),
                 env=env,
                 capture_output=True,
