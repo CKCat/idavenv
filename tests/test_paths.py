@@ -6,6 +6,7 @@ from idavenv.paths import (
     get_ida_user_dir,
     get_venv_bin_dir,
     get_venv_python_executable,
+    get_venv_python_version,
     get_venv_site_packages,
 )
 
@@ -200,6 +201,34 @@ def test_extract_py_version_from_dll_variants(tmp_path):
     if cand_python3_dlls and cand_python3_dlls[0].exists():
         ver = _extract_py_version_from_dll(cand_python3_dlls[0])
         assert ver is not None
+
+
+def test_get_venv_python_version(tmp_path):
+    venv = tmp_path / "venv"
+    venv.mkdir()
+    assert get_venv_python_version(venv) is None
+
+    cfg = venv / "pyvenv.cfg"
+    cfg.write_text("version = 3.11.8\n", encoding="utf-8")
+    assert get_venv_python_version(venv) == "3.11"
+
+    cfg.write_text("version_info = 3.12.3.final.0\n", encoding="utf-8")
+    assert get_venv_python_version(venv) == "3.12"
+
+
+def test_detect_ida_python_path_prioritizes_host_exe(monkeypatch, tmp_path):
+    host_exe = tmp_path / "host_python.exe"
+    host_exe.touch()
+    venv_exe = tmp_path / "venv_python.exe"
+    venv_exe.touch()
+
+    monkeypatch.setenv("IDA_PYTHON_EXE", str(host_exe))
+    monkeypatch.setenv("IDAPYTHON_VENV_EXECUTABLE", str(venv_exe))
+
+    # IDA_PYTHON_EXE should have higher priority than IDAPYTHON_VENV_EXECUTABLE
+    detected = detect_ida_python_path()
+    assert detected == host_exe.resolve()
+
 
 
 

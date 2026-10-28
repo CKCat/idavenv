@@ -121,7 +121,7 @@ def _activate_idapython_virtualenv():
                 f"but venv was created for {{venv_py_ver}})."
             )
             print(
-                f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}}' to fix."
+                f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}} -f' to fix."
             )
         except Exception:
             pass
@@ -145,7 +145,7 @@ def _activate_idapython_virtualenv():
                     f"but venv was created for {{', '.join(other_vers)}})."
                 )
                 print(
-                    f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}}' to fix."
+                    f"    Run 'idavenv init --python {{sys.version_info.major}}.{{sys.version_info.minor}} -f' to fix."
                 )
             except Exception:
                 pass

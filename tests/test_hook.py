@@ -132,3 +132,10 @@ def test_inject_hook_cleans_legacy_idavirtualenv_block(tmp_path):
     assert "managed by idavirtualenv" not in updated
     assert "managed by idavenv" in updated
     assert "print('user preserved')" in updated
+
+
+def test_hook_code_suggests_force_in_warning(tmp_path):
+    code = generate_hook_code(tmp_path / "venv")
+    assert "init --python" in code
+    assert "-f" in code
+

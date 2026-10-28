@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,7 @@ from idavenv.paths import (
     detect_ida_python_path,
     get_ida_user_dir,
     get_venv_python_executable,
+    get_venv_python_version,
     get_venv_site_packages,
 )
 
@@ -40,6 +42,7 @@ class EnvStatus:
     python_executable: Optional[Path]
     detected_ida_python: Optional[Union[Path, str]] = None
     is_ida9_native: bool = False
+    venv_python_version: Optional[str] = None
 
 
 class IDAVirtualenvManager:
@@ -78,6 +81,25 @@ class IDAVirtualenvManager:
         """
         self.ida_dir.mkdir(parents=True, exist_ok=True)
 
+        if self.venv_dir.exists() and not force:
+            target_py = python_executable
+            existing_ver = get_venv_python_version(self.venv_dir)
+            if target_py and existing_ver:
+                m = re.search(r"(\d+)\.(\d+)", str(target_py))
+                if m:
+                    target_ver = f"{m.group(1)}.{m.group(2)}"
+                    if target_ver != existing_ver:
+                        return ExecutionResult(
+                            success=False,
+                            returncode=1,
+                            stdout="",
+                            stderr=(
+                                f"Existing virtualenv at {self.venv_dir} is Python {existing_ver}, "
+                                f"which does not match requested Python {target_ver}. "
+                                f"Re-run with --force (-f) to recreate."
+                            ),
+                        )
+
         if self.venv_dir.exists() and force:
             if self.venv_dir.is_symlink():
                 self.venv_dir.unlink()
@@ -89,7 +111,15 @@ class IDAVirtualenvManager:
             if not base_py:
                 detected_py = detect_ida_python_path()
                 if detected_py:
-                    base_py = str(detected_py)
+                    try:
+                        resolved_detected = Path(detected_py).resolve()
+                        if (
+                            resolved_detected != self.venv_dir.resolve()
+                            and self.venv_dir.resolve() not in resolved_detected.parents
+                        ):
+                            base_py = str(detected_py)
+                    except Exception:
+                        base_py = str(detected_py)
 
             create_res = self.backend.create_venv(
                 venv_dir=self.venv_dir,
@@ -117,6 +147,9 @@ class IDAVirtualenvManager:
         python_executable = (
             get_venv_python_executable(self.venv_dir) if venv_exists else None
         )
+        venv_python_version = (
+            get_venv_python_version(self.venv_dir) if venv_exists else None
+        )
 
         env_override = os.environ.get("IDAPYTHON_VENV_EXECUTABLE")
         is_ida9_native = False
@@ -140,6 +173,7 @@ class IDAVirtualenvManager:
             python_executable=python_executable,
             detected_ida_python=detect_ida_python_path(),
             is_ida9_native=is_ida9_native,
+            venv_python_version=venv_python_version,
         )
 
     def install_packages(

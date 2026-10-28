@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -203,12 +204,22 @@ def main(args: Optional[List[str]] = None) -> int:
         print(f"IDA 9.0+ Native     : {native_str}")
         if status.detected_ida_python:
             print(f"Detected IDA Python : {status.detected_ida_python}")
+        if status.venv_python_version:
+            print(f"Virtualenv Python   : {status.venv_python_version}")
         if status.python_executable:
             print(f"Python Executable   : {status.python_executable}")
         if status.site_packages:
             print("Site-Packages Dirs  :")
             for sp in status.site_packages:
                 print(f"  - {sp}")
+        if status.detected_ida_python and status.venv_python_version:
+            m = re.search(r"(\d+)\.(\d+)", str(status.detected_ida_python))
+            if m and m.group(0) != status.venv_python_version:
+                print(
+                    f"\n[!] Warning: Virtualenv Python ({status.venv_python_version}) does not match "
+                    f"detected IDA Python ({m.group(0)}).\n"
+                    f"    Run 'idavenv init --python {m.group(0)} -f' to re-sync."
+                )
         return 0
 
     elif parsed_args.command == "install":

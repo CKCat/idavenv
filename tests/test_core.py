@@ -134,4 +134,35 @@ def test_env_status_ida9_native_detection(tmp_path, monkeypatch):
     assert status2.is_ida9_native is True
 
 
+def test_init_fails_if_existing_venv_has_different_python_without_force(tmp_path):
+    ida_dir = tmp_path / "ida_mismatch_init"
+    ida_dir.mkdir()
+    venv_dir = ida_dir / "venv"
+    venv_dir.mkdir()
+    (venv_dir / "pyvenv.cfg").write_text("version_info = 3.14.7\n", encoding="utf-8")
+
+    manager = IDAVirtualenvManager(
+        ida_dir=ida_dir, venv_dir=venv_dir, backend_name="builtin"
+    )
+    res = manager.init(python_executable="3.12", force=False)
+    assert res.success is False
+    assert "Existing virtualenv" in res.stderr
+    assert "--force" in res.stderr
+
+
+def test_status_reports_venv_python_version(tmp_path):
+    ida_dir = tmp_path / "ida_status_ver"
+    ida_dir.mkdir()
+    venv_dir = ida_dir / "venv"
+    venv_dir.mkdir()
+    (venv_dir / "pyvenv.cfg").write_text("version_info = 3.12.4\n", encoding="utf-8")
+
+    manager = IDAVirtualenvManager(
+        ida_dir=ida_dir, venv_dir=venv_dir, backend_name="builtin"
+    )
+    status = manager.status()
+    assert status.venv_python_version == "3.12"
+
+
+
 

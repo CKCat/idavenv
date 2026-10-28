@@ -102,6 +102,46 @@ def get_ida_user_dir(system: Optional[str] = None) -> Path:
     return (Path.home() / ".idapro").resolve()
 
 
+def get_venv_python_version(venv_dir: Path) -> Optional[str]:
+    """Reads the Python major.minor version of an existing virtual environment.
+
+    Inspects pyvenv.cfg for 'version_info' or 'version', or checks lib/pythonX.Y.
+
+    Args:
+        venv_dir: Root path of the virtual environment.
+
+    Returns:
+        Version string (e.g. '3.12') or None.
+    """
+    resolved_venv = Path(venv_dir).resolve()
+    cfg_file = resolved_venv / "pyvenv.cfg"
+    if cfg_file.exists():
+        try:
+            content = cfg_file.read_text(encoding="utf-8", errors="ignore")
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith("version_info") or line.startswith("version"):
+                    parts = line.split("=", 1)
+                    if len(parts) == 2:
+                        val = parts[1].strip()
+                        m = re.search(r"(\d+)\.(\d+)", val)
+                        if m:
+                            return f"{m.group(1)}.{m.group(2)}"
+        except Exception:
+            pass
+
+    # Fallback to check lib/pythonX.Y on POSIX or similar layouts
+    lib_dir = resolved_venv / "lib"
+    if lib_dir.exists():
+        for sub in lib_dir.iterdir():
+            if sub.is_dir() and sub.name.startswith("python"):
+                m = re.search(r"python(\d+)\.(\d+)", sub.name)
+                if m:
+                    return f"{m.group(1)}.{m.group(2)}"
+
+    return None
+
+
 def get_venv_site_packages(venv_dir: Path) -> List[Path]:
     """Finds all candidate site-packages directories in a virtual environment.
 
@@ -193,11 +233,11 @@ def get_venv_python_executable(venv_dir: Path, system: Optional[str] = None) -> 
 
 
 def detect_ida_python_path(system: Optional[str] = None) -> Optional[Union[Path, str]]:
-    """Detects the Python executable or version string configured for IDA Pro.
+    """Detects the host Python executable or version string configured for IDA Pro.
 
     Resolution order:
-    1. IDAPYTHON_VENV_EXECUTABLE environment variable (native in IDA 9.0+).
-    2. IDA_PYTHON_EXE or IDA_PYTHON_DLL environment variable.
+    1. IDA_PYTHON_EXE or IDA_PYTHON_DLL environment variable (explicit IDA host Python).
+    2. IDAPYTHON_VENV_EXECUTABLE environment variable (IDA 9.0+ venv override).
     3. Windows Registry (HKCU/HKLM -> Software\\Hex-Rays\\IDA -> Python3TargetDLL).
 
     Returns:
@@ -205,13 +245,12 @@ def detect_ida_python_path(system: Optional[str] = None) -> Optional[Union[Path,
     """
     target_system = (system or sys.platform).lower()
 
-    # 1. Environment variables
-    for env_var in ("IDAPYTHON_VENV_EXECUTABLE", "IDA_PYTHON_EXE"):
-        val = os.environ.get(env_var)
-        if val:
-            p = Path(val).expanduser().resolve()
-            if p.exists():
-                return p
+    # 1. Explicit IDA Python host environment variables
+    val_exe = os.environ.get("IDA_PYTHON_EXE")
+    if val_exe:
+        p = Path(val_exe).expanduser().resolve()
+        if p.exists():
+            return p
 
     val_dll = os.environ.get("IDA_PYTHON_DLL")
     if val_dll:
@@ -223,7 +262,14 @@ def detect_ida_python_path(system: Optional[str] = None) -> Optional[Union[Path,
             ver = _extract_py_version_from_dll(p)
             return ver if ver else None
 
-    # 2. Windows registry
+    # 2. IDAPYTHON_VENV_EXECUTABLE
+    val_venv = os.environ.get("IDAPYTHON_VENV_EXECUTABLE")
+    if val_venv:
+        p = Path(val_venv).expanduser().resolve()
+        if p.exists():
+            return p
+
+    # 3. Windows registry
     if target_system.startswith("win"):
         try:
             import winreg

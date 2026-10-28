@@ -122,3 +122,25 @@ def test_cli_uninstall_no_hook_with_clean_venv(tmp_path, capsys):
     assert "Virtualenv directory cleaned" in out
     assert not venv_dir.exists()
 
+
+def test_cli_info_shows_venv_python_and_mismatch_warning(tmp_path, capsys, monkeypatch):
+    ida_dir = tmp_path / "cli_mismatch"
+    ida_dir.mkdir()
+    venv_dir = ida_dir / "venv"
+    venv_dir.mkdir()
+    (venv_dir / "pyvenv.cfg").write_text("version_info = 3.12.0\n", encoding="utf-8")
+
+    # Simulate IDA host python being 3.14
+    fake_host_py = tmp_path / "python3.14" / "python.exe"
+    fake_host_py.parent.mkdir()
+    fake_host_py.touch()
+    monkeypatch.setenv("IDA_PYTHON_EXE", str(fake_host_py))
+
+    exit_code = main(["info", "--ida-dir", str(ida_dir)])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "Virtualenv Python   : 3.12" in out
+    assert "Warning: Virtualenv Python (3.12) does not match" in out
+    assert "Run 'idavenv init --python 3.14 -f' to re-sync." in out
+
+
