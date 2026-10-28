@@ -231,6 +231,43 @@ class UvBackend(EnvBackend):
             )
 
 
+def _resolve_python_cmd(python_executable: str) -> Optional[List[str]]:
+    """Resolves a python executable or version string into a command invocation list."""
+    p = Path(python_executable)
+    if p.is_file():
+        return [str(p.resolve())]
+
+    found = shutil.which(python_executable)
+    if found:
+        return [found]
+
+    if sys.platform == "win32":
+        py_launcher = shutil.which("py")
+        if py_launcher:
+            try:
+                check = subprocess.run(
+                    [py_launcher, f"-{python_executable}", "-c", "import sys"],
+                    capture_output=True,
+                    text=True,
+                )
+                if check.returncode == 0:
+                    return [py_launcher, f"-{python_executable}"]
+            except Exception:
+                pass
+
+        cand_name = f"python{python_executable}"
+        found = shutil.which(cand_name)
+        if found:
+            return [found]
+    else:
+        cand_name = f"python{python_executable}"
+        found = shutil.which(cand_name)
+        if found:
+            return [found]
+
+    return None
+
+
 class BuiltinBackend(EnvBackend):
     """Virtualenv and package management backend using Python's standard library venv."""
 
@@ -246,7 +283,15 @@ class BuiltinBackend(EnvBackend):
         venv_dir = Path(venv_dir).resolve()
         try:
             if python_executable:
-                cmd = [python_executable, "-m", "venv", str(venv_dir)]
+                resolved_cmd = _resolve_python_cmd(python_executable)
+                if not resolved_cmd:
+                    return ExecutionResult(
+                        success=False,
+                        returncode=-1,
+                        stdout="",
+                        stderr=f"Cannot find Python interpreter for '{python_executable}'. Please verify the version or path.",
+                    )
+                cmd = resolved_cmd + ["-m", "venv", str(venv_dir)]
                 if system_site_packages:
                     cmd.append("--system-site-packages")
                 proc = subprocess.run(cmd, capture_output=True, text=True)

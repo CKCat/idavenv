@@ -105,3 +105,20 @@ def test_cli_info_and_init_shows_ida9_details(tmp_path, capsys):
     assert exit_code == 0
     info_out = capsys.readouterr().out
     assert "IDA 9.0+ Native" in info_out
+
+
+def test_cli_uninstall_no_hook_with_clean_venv(tmp_path, capsys):
+    ida_dir = tmp_path / "cli_un_no_hook"
+    ida_dir.mkdir()
+    # Create only venv directory without idapythonrc.py
+    venv_dir = ida_dir / "venv"
+    venv_dir.mkdir()
+
+    exit_code = main(["uninstall", "--ida-dir", str(ida_dir), "--clean-venv"])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "No active hook found" in out
+    assert "Hook successfully removed" not in out
+    assert "Virtualenv directory cleaned" in out
+    assert not venv_dir.exists()
+

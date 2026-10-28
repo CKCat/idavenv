@@ -174,6 +174,17 @@ class IDAVirtualenvManager:
             )
         return self.backend.list_packages(self.venv_dir)
 
+    def remove_hook(self) -> bool:
+        """Removes the virtualenv hook from idapythonrc.py."""
+        return remove_hook(self.rc_file)
+
+    def clean_venv(self) -> bool:
+        """Removes the virtualenv directory on disk."""
+        if self.venv_dir.exists():
+            shutil.rmtree(self.venv_dir)
+            return True
+        return False
+
     def uninstall(self, remove_venv: bool = False) -> bool:
         """Unlinks the virtualenv by removing hook from idapythonrc.py and optionally deletes venv.
 
@@ -183,12 +194,9 @@ class IDAVirtualenvManager:
         Returns:
             True if hook was removed or virtualenv was deleted.
         """
-        removed = remove_hook(self.rc_file)
-        venv_cleaned = False
-        if remove_venv and self.venv_dir.exists():
-            shutil.rmtree(self.venv_dir)
-            venv_cleaned = True
-        return removed or venv_cleaned
+        hook_removed = self.remove_hook()
+        venv_cleaned = self.clean_venv() if remove_venv else False
+        return hook_removed or venv_cleaned
 
     def run_command(self, command: List[str]) -> ExecutionResult:
         """Runs an arbitrary command inside the virtual environment context."""

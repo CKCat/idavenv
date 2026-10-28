@@ -180,3 +180,27 @@ def test_init_exports_detect_ida_python():
     assert "detect_ida_python_path" in idavenv.__all__
 
 
+def test_extract_py_version_from_dll_variants(tmp_path):
+    from idavenv.paths import _extract_py_version_from_dll
+
+    # 1. Standard python314.dll
+    f1 = tmp_path / "python314.dll"
+    assert _extract_py_version_from_dll(f1) == "3.14"
+
+    # 2. python310.dll
+    f2 = tmp_path / "python310.dll"
+    assert _extract_py_version_from_dll(f2) == "3.10"
+
+    # 3. Non-python dll
+    f3 = tmp_path / "other.dll"
+    assert _extract_py_version_from_dll(f3) is None
+
+    # 4. python3.dll on Windows with PE version resource
+    cand_python3_dlls = list(Path.home().glob("AppData/Roaming/uv/python/*/python3.dll"))
+    if cand_python3_dlls and cand_python3_dlls[0].exists():
+        ver = _extract_py_version_from_dll(cand_python3_dlls[0])
+        assert ver is not None
+
+
+
+

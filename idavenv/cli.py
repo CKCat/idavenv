@@ -263,13 +263,15 @@ def main(args: Optional[List[str]] = None) -> int:
         return res.returncode
 
     elif parsed_args.command == "uninstall":
-        removed = manager.uninstall(remove_venv=parsed_args.clean_venv)
-        if removed:
+        hook_removed = manager.remove_hook()
+        if hook_removed:
             print("[+] Hook successfully removed from idapythonrc.py.")
         else:
             print("[*] No active hook found in idapythonrc.py.")
         if parsed_args.clean_venv:
-            print("[+] Virtualenv directory cleaned.")
+            venv_cleaned = manager.clean_venv()
+            if venv_cleaned:
+                print("[+] Virtualenv directory cleaned.")
         return 0
 
     return 0

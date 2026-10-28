@@ -37,11 +37,6 @@ def _activate_idapython_virtualenv():
     if not venv_root.exists():
         return
 
-    # If already activated in current process, mark sentinel and exit
-    if Path(sys.prefix).resolve() == venv_root:
-        setattr(builtins, _SENTINEL, True)
-        return
-
     curr_py_ver = f"python{{sys.version_info.major}}.{{sys.version_info.minor}}"
     site_dirs = []
 
@@ -58,6 +53,44 @@ def _activate_idapython_virtualenv():
     posix_site64 = venv_root / "lib64" / curr_py_ver / "site-packages"
     if posix_site64.exists() and posix_site64 not in site_dirs:
         site_dirs.append(posix_site64)
+
+    def _register_dll_dirs(v_root, s_dirs):
+        if os.name == "nt" and hasattr(os, "add_dll_directory"):
+            _DLL_HANDLES = "_idapython_dll_handles"
+            if not hasattr(builtins, _DLL_HANDLES):
+                setattr(builtins, _DLL_HANDLES, [])
+            handles = getattr(builtins, _DLL_HANDLES)
+
+            def _safe_add(p):
+                try:
+                    h = os.add_dll_directory(str(p))
+                    handles.append(h)
+                except Exception:
+                    pass
+
+            b_dir = v_root / ("Scripts" if os.name == "nt" else "bin")
+            if b_dir.exists():
+                _safe_add(b_dir)
+            for sd in s_dirs:
+                if sd.exists():
+                    _safe_add(sd)
+                    try:
+                        for sub in sd.iterdir():
+                            if sub.is_dir():
+                                sub_lib = sub / "lib"
+                                if sub_lib.is_dir():
+                                    _safe_add(sub_lib)
+                                sub_bin = sub / "bin"
+                                if sub_bin.is_dir():
+                                    _safe_add(sub_bin)
+                    except Exception:
+                        pass
+
+    # If already activated in current process (e.g. IDA 9.0+ native detect_venv()), ensure DLL paths and exit
+    if Path(sys.prefix).resolve() == venv_root:
+        _register_dll_dirs(venv_root, site_dirs)
+        setattr(builtins, _SENTINEL, True)
+        return
 
     # Check pyvenv.cfg for version mismatch (especially critical on Windows where Lib/site-packages lacks version in path)
     cfg_file = venv_root / "pyvenv.cfg"
@@ -140,35 +173,7 @@ def _activate_idapython_virtualenv():
         os.environ["PATH"] = str(bin_dir) + os.pathsep + current_path
 
         # Windows Python 3.8+ DLL directory resolution for C extensions (e.g. z3, unicorn)
-        if os.name == "nt" and hasattr(os, "add_dll_directory"):
-            _DLL_HANDLES = "_idapython_dll_handles"
-            if not hasattr(builtins, _DLL_HANDLES):
-                setattr(builtins, _DLL_HANDLES, [])
-            handles = getattr(builtins, _DLL_HANDLES)
-
-            def _safe_add_dll_dir(p):
-                try:
-                    h = os.add_dll_directory(str(p))
-                    handles.append(h)
-                except Exception:
-                    pass
-
-            if bin_dir.exists():
-                _safe_add_dll_dir(bin_dir)
-            for s_dir in site_dirs:
-                if s_dir.exists():
-                    _safe_add_dll_dir(s_dir)
-                    try:
-                        for sub in s_dir.iterdir():
-                            if sub.is_dir():
-                                sub_lib = sub / "lib"
-                                if sub_lib.is_dir():
-                                    _safe_add_dll_dir(sub_lib)
-                                sub_bin = sub / "bin"
-                                if sub_bin.is_dir():
-                                    _safe_add_dll_dir(sub_bin)
-                    except Exception:
-                        pass
+        _register_dll_dirs(venv_root, site_dirs)
 
     setattr(builtins, _SENTINEL, True)
     try:
