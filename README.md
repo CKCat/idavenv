@@ -1,68 +1,68 @@
-# idavenv 🚀
+# idavenv
 
 [![PyPI](https://img.shields.io/pypi/v/idavenv.svg)](https://pypi.org/project/idavenv/)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![IDA Pro](https://img.shields.io/badge/IDA%20Pro-9.0%2B-orange.svg)](https://hex-rays.com/)
-[![Backend](https://img.shields.io/badge/Powered%20by-uv-purple.svg)](https://github.com/astral-sh/uv)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
 
-基于 **`uv`** 的跨平台自动化 **IDAPython 虚拟环境** 管理工具与 Python 库，专为 **IDA Pro 9.0+** 设计。
+`idavenv` 是专为 **IDA Pro 9.0+** 设计的 IDAPython 虚拟环境管理工具与 Python 库，底层基于 **`uv`** 实现环境创建与依赖安装。
 
-参考 Hex-Rays 官方社区讨论 [Using a virtualenv for IDAPython](https://community.hex-rays.com/t/using-a-virtualenv-for-idapython/261/9) 与 **IDAPython 9.0+ 官方 C 级原生实现**，提供**双轨虚拟环境加载机制**（官方原生 `IDAPYTHON_VENV_EXECUTABLE` + 非侵入式 `idapythonrc.py` 智能 Hook 兜底），使 IDA Pro 能够无缝、极速加载独立的 Python 虚拟环境及其第三方依赖（如 `z3-solver`, `requests`, `capstone`, `ida-pro-mcp` 等）。
-
----
-
-## 🌟 核心特性
-
-- ⚡ **毫秒级极速管理**：深度集成 Astral 的 **`uv`**（`uv venv` 和 `uv pip`），秒级创建环境与解析依赖，同时提供标准库 `venv` 的无缝回退支持。
-- 🎯 **IDA 9.0+ 双轨原生架构**：
-  - **原生 C 级别加载 (轨道 1)**：完全契合 IDA 9.0+ IDAPython 源码检测机制。通过配置 `IDAPYTHON_VENV_EXECUTABLE`，IDA 在启动时直接由 C 源码层切换虚拟环境解释器，完全原生抑制系统全局包。
-  - **智能 Hook 兜底 (轨道 2)**：自动注入 `$IDAUSR/idapythonrc.py`。若已被原生接管则瞬间 0 开销标记退出；若未设置环境变量，则以最高优先级挂载虚拟环境并持久化 DLL 目录。
-- 🖥️ **全平台深度适配**：
-  - **Windows**：自动探测 `%APPDATA%\Hex-Rays\IDA Pro` 与 `Lib/site-packages`，原生支持 Python 3.8+ `os.add_dll_directory` 并持久化 DLL 句柄（解决 `z3`, `unicorn`, `keystone` 等二进制扩展 DLL 动态加载问题）。
-  - **Linux**：自动探测 `~/.idapro` 与 `lib/pythonX.Y/site-packages`。
-  - **macOS**：自动探测 `~/.idapro`。
-  - 支持 `$IDAUSR` 多路径智能发现（优先复用已有配置）。
-- 🛡️ **安全隔离与智能诊断**：
-  - 使用专用标记块 (`# >>> IDAPython Virtualenv Hook >>>`) 注入 `idapythonrc.py`，绝不破坏用户原有的 IDA 配置。
-  - 自动提升虚拟环境在 `sys.path` 中的加载优先级，彻底防止宿主全局旧版本包覆盖（Shadowing）。
-  - 内置 `builtins` 哨兵变量机制，杜绝在 IDA 中切换数据库或重复执行时的重入副作用。
-  - 包含 Python 版本不匹配智能诊断与友好告警。
-- 🔄 **动态多环境切换**：
-  - 支持通过环境变量 `IDAPYTHON_VENV=/path/to/custom_venv` 动态临时覆盖当前激活的虚拟环境。
-- 📦 **支持多种依赖安装格式**：
-  - 支持安装单个/多个包：`idavenv install z3-solver requests`
-  - 支持批量安装依赖文件：`idavenv install -r requirements.txt`
-  - 支持安装 GitHub 仓库：`idavenv install "git+https://github.com/mrexodia/ida-pro-mcp"`
+支持 IDA 9.0+ 官方原生解释器切换机制（`IDAPYTHON_VENV_EXECUTABLE`），同时提供非侵入式的 `idapythonrc.py` 挂载方案，便于在 IDA Pro 中管理和使用第三方 Python 库（如 `z3-solver`、`requests`、`idapro`、`ida-pro-mcp` 等）。
 
 ---
 
-## 🚀 极速上手
+## 特性
 
-### 方式 1：使用 `uvx` 免安装直接运行（最优雅推荐！）
+- **环境管理**：基于 `uv` 进行虚拟环境创建与依赖安装；若系统未安装 `uv`，自动回退到 Python 标准库 `venv`。
+- **双加载支持**：
+  - **原生加载**：适配 IDA 9.0+ 原生机制，通过配置 `IDAPYTHON_VENV_EXECUTABLE` 实现解释器切换。
+  - **Hook 兜底**：在 `$IDAUSR/idapythonrc.py` 中注入安全 Hook 块，未配置环境变量时由脚本挂载虚拟环境并保证加载优先级。
+- **版本校验**：自动探测 IDA 宿主 Python 版本；目标版本与现有环境不一致时主动拦截并提示 `--force (-f)` 选项，避免旧环境静默残留。
+- **二进制依赖支持**：Windows 下自动探测并注册虚拟环境及第三方包的 DLL 目录（`os.add_dll_directory`），支持 `z3`、`keystone` 等二进制依赖。
+- **编码处理**：针对 Windows 中文环境（CP936/GBK）优化子进程管道流解码，避免输出特殊符号时崩溃。
+- **环境隔离**：通过标记块管理 `idapythonrc.py`，不影响用户已有的自定义脚本；支持通过 `IDAPYTHON_VENV` 临时指定虚拟环境路径。
 
-无需提前安装任何包，直接在终端中调用：
+---
+
+## 安装与使用
+
+### 1. 使用 `uvx` 运行（无需安装）
 
 ```bash
-# 1. 一键初始化 IDAPython 虚拟环境并自动关联 IDA
+# 初始化虚拟环境并关联 IDA
 uvx idavenv init
 
-# 2. 为 IDA 安装依赖（秒级解析安装）
+# 安装第三方包
 uvx idavenv install z3-solver requests
 
-# 3. 诊断当前环境状态
+# 查看当前环境配置
 uvx idavenv info
+```
+
+若需强制拉取最新发布的版本，可附加 `--refresh`：
+```bash
+uvx --refresh idavenv init
 ```
 
 ---
 
-### 方式 2：使用 `pip` 或 `pipx` 全局安装
+### 2. 全局安装使用
 
+通过 `uv tool`：
 ```bash
-pip install idavenv
+uv tool install idavenv
+uv tool upgrade idavenv
+```
 
-# 随后可在任意终端直接使用 idavenv 命令：
+或通过 `pipx` / `pip`：
+```bash
+pipx install idavenv
+# 或
+pip install --upgrade idavenv
+```
+
+安装后直接在终端执行：
+```bash
 idavenv init
 idavenv install z3-solver
 idavenv info
@@ -70,100 +70,130 @@ idavenv info
 
 ---
 
-### 方式 3：源码本地运行
-
-```bash
-uv run main.py init
-uv run main.py install z3-solver
-uv run main.py info
-```
-
----
-
-## 🛠️ 命令行参考 (CLI Reference)
+## 命令行参考
 
 ```
 usage: idavenv [-h] [--version] {init,info,install,list,run,uninstall} ...
 
 positional arguments:
-  init                Create virtualenv and link to IDA via idapythonrc.py
-  info                Display IDA and IDAPython virtualenv status.
-  install             Install Python packages or requirement files into IDAPython virtualenv.
-  list                List packages installed in IDAPython virtualenv.
-  run                 Run a command inside IDAPython virtualenv environment.
-  uninstall           Remove IDAPython virtualenv hook and optionally delete venv.
+  init                创建虚拟环境并关联到 IDA (idapythonrc.py)
+  info                查看 IDA 与虚拟环境状态
+  install             安装 Python 包或 requirements.txt 依赖
+  list                列出虚拟环境中已安装的依赖
+  run                 在虚拟环境上下文中运行命令
+  uninstall           移除 Hook 配置并可选择性删除虚拟环境
 ```
 
-### 常用命令示例
+### 命令示例
 
 ```bash
-# 1. 初始化并指定特定 Python 解释器 (例如 3.11)
-idavenv init --python 3.11
+# 初始化指定版本的 Python (如 3.12)
+idavenv init --python 3.12
 
-# 2. 安装 requirements.txt 文件中的所有依赖
+# 强制重建虚拟环境（切换 Python 版本时使用）
+idavenv init --python 3.12 -f
+
+# 批量安装 requirements 文件
 idavenv install -r requirements.txt
 
-# 3. 查看环境中已安装的依赖
+# 安装本地 wheel 文件（如 IDA 自带的 idapro SDK）
+idavenv install "<IDA_INSTALL_DIR>/idalib/python/idapro-0.0.11-py3-none-any.whl"
+
+# 查看虚拟环境已安装的包
 idavenv list
 
-# 4. 在虚拟环境中执行测试命令
-idavenv run python -c "import z3; print(z3.__version__)"
+# 在虚拟环境中测试执行命令
+idavenv run python -c "import sys; print(sys.executable)"
 
-# 5. 解除 IDA 关联
-idavenv uninstall
+# 移除 Hook 并删除虚拟环境目录
+idavenv uninstall --clean-venv
 ```
 
 ---
 
-## 💻 Python API 使用
+## IDA 9.0+ 原生模式配置
 
-作为第三方库被其它 IDA 插件或自动化工具集成：
+若希望 IDA 在通过各种快捷方式、独立可执行文件（`ida.exe` / `ida64.exe`）启动时直接生效，可设置系统或用户环境变量 `IDAPYTHON_VENV_EXECUTABLE`：
+
+### Windows (PowerShell)
+```pwsh
+$venvPy = (idavenv info | Select-String "Python Executable" | ForEach-Object { ($_ -split ": ")[1].Trim() })
+[Environment]::SetEnvironmentVariable("IDAPYTHON_VENV_EXECUTABLE", $venvPy, "User")
+```
+
+### Linux / macOS (Bash)
+```bash
+echo "export IDAPYTHON_VENV_EXECUTABLE=\"$(idavenv info | grep 'Python Executable' | awk -F': ' '{print $2}')\"" >> ~/.bashrc
+```
+
+设置后运行 `idavenv info`，`IDA 9.0+ Native` 将显示为 `Active`。
+
+---
+
+## Python API
+
+支持在其他脚本或工具中直接调用：
 
 ```python
 from idavenv import IDAVirtualenvManager
 
 manager = IDAVirtualenvManager()
 
-# 初始化环境并关联 IDA
-manager.init()
+# 初始化（支持 force=True 覆盖重建）
+res = manager.init(python_executable="3.12")
+if not res.success:
+    print(f"Error: {res.stderr}")
 
-# 安装依赖
-manager.install_packages(packages=["z3-solver", "requests"])
+# 安装包
+manager.install_packages(["z3-solver", "requests"])
 
-# 查看状态
+# 查询状态
 status = manager.status()
-print(f"Hook installed : {status.is_hooked}")
-print(f"Venv path      : {status.venv_dir}")
-print(f"IDA 9.0+ Native: {status.is_ida9_native}")
+print(f"Hook installed    : {status.is_hooked}")
+print(f"Venv path         : {status.venv_dir}")
+print(f"Venv Python       : {status.venv_python_version}")
+print(f"Detected IDA Py   : {status.detected_ida_python}")
+print(f"IDA 9.0+ Native   : {status.is_ida9_native}")
 ```
 
 ---
 
-## 📦 PyPI 构建与发布指南
+## 常见问题
+
+**Q: 启动 IDA 时提示 `Python version mismatch`？**  
+当前 IDA 宿主配置的 Python 版本与虚拟环境所基于的版本不一致。执行以下命令指定当前 IDA 使用的版本并重建环境：
+```bash
+idavenv init --python <VERSION> -f
+```
+
+**Q: 执行 `idavenv install idalib` 提示找不到包？**  
+Hex-Rays 官方的 Headless SDK 包名实际为 **`idapro`**，位于 IDA 安装目录下的 `idalib/python/` 目录中。使用本地路径安装即可：
+```bash
+idavenv install "<IDA_INSTALL_DIR>/idalib/python/idapro-*.whl"
+```
+
+---
+
+## 参考链接 (References)
+
+- [Hex-Rays 官方社区讨论: Using a virtualenv for IDAPython](https://community.hex-rays.com/t/using-a-virtualenv-for-idapython/261/9)
+- [Hex-Rays IDA Pro 官方网站](https://hex-rays.com/)
+- [IDAPython 官方仓库](https://github.com/idapython/src)
+- [Astral uv 快速包管理工具](https://github.com/astral-sh/uv)
+- [ida-pro-mcp: IDA Pro Model Context Protocol Server](https://github.com/mrexodia/ida-pro-mcp)
+- [Model Context Protocol (MCP) 规范](https://modelcontextprotocol.io/)
+
+---
+
+## 构建与测试
 
 ### 构建分发包
 
 ```bash
 uv build
-# 产物生成在 dist/ 目录下：
-# - dist/idavenv-0.1.0.tar.gz (sdist)
-# - dist/idavenv-0.1.0-py3-none-any.whl (wheel)
 ```
 
-### 发布到 PyPI
-
-```bash
-# 使用 uv publish 上传
-uv publish
-# 或通过 API Token 发布
-uv publish --token <YOUR_PYPI_API_TOKEN>
-```
-
----
-
-## 🧪 自动化测试
-
-项目遵循严格的 TDD 规范，覆盖全部跨平台路径、Hook 注入、DLL 目录、版本诊断、IDA 9.0+ 原生接管检测与 CLI 全功能（60 项测试全部通过）：
+### 运行测试
 
 ```bash
 uv run pytest -v
@@ -171,6 +201,6 @@ uv run pytest -v
 
 ---
 
-## 📄 License
+## License
 
-MIT License.
+[MIT License](LICENSE).
