@@ -135,4 +135,40 @@ def test_resolve_python_cmd_matches_python3_when_version_matches(monkeypatch):
     assert resolved == ["/usr/bin/python3"]
 
 
+def test_safe_decode_handles_utf8_gbk_and_binary():
+    from idavenv.env_backend import _safe_decode
+
+    # 1. UTF-8 with special characters
+    utf8_data = "安装成功 ⚡ ✓ 🚀".encode("utf-8")
+    assert _safe_decode(utf8_data) == "安装成功 ⚡ ✓ 🚀"
+
+    # 2. Pure GBK that is invalid UTF-8
+    # 0xb6 0xaf is '动' in GBK, but invalid UTF-8 sequence
+    gbk_data = "测试gbk编码".encode("gbk")
+    assert "测试gbk编码" in _safe_decode(gbk_data)
+
+    # 3. Invalid bytes that cannot decode in neither UTF-8 nor GBK
+    raw_bad = b"prefix \xff\xfe\xba\xbb suffix"
+    decoded = _safe_decode(raw_bad)
+    assert "prefix" in decoded
+    assert "suffix" in decoded
+
+
+def test_backend_run_command_with_utf8_multibyte_output(tmp_path):
+    backend = get_backend()
+    venv_dir = tmp_path / "utf8_out_venv"
+    backend.create_venv(venv_dir)
+
+    # Print multibyte UTF-8 characters that often trigger Windows GBK UnicodeDecodeError
+    cmd = [
+        "python",
+        "-c",
+        "import sys; sys.stdout.buffer.write('安装完成 ⚡ 0xb6: \\xb6\\n'.encode('utf-8'))",
+    ]
+    res = backend.run_command(venv_dir, cmd)
+    assert res.success is True
+    assert "安装完成" in res.stdout
+
+
+
 

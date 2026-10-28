@@ -10,9 +10,52 @@ import venv
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from idavenv.paths import get_venv_bin_dir, get_venv_python_executable
+
+
+def _safe_decode(data: Union[bytes, str, None]) -> str:
+    """Decodes binary or string data safely using UTF-8, GBK or replacement fallback."""
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+
+    # 1. Try UTF-8 first (standard for uv, pip and modern tools)
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+
+    # 2. Try GBK / current locale on Windows
+    try:
+        return data.decode("gbk")
+    except UnicodeDecodeError:
+        pass
+
+    # 3. Fallback to replace
+    return data.decode("utf-8", errors="replace")
+
+
+def _safe_run(cmd: List[str], **kwargs) -> subprocess.CompletedProcess:
+    """Executes a subprocess in binary mode and decodes output safely to prevent readerthread UnicodeDecodeError."""
+    kwargs.pop("text", None)
+    kwargs.pop("universal_newlines", None)
+    kwargs.pop("encoding", None)
+    kwargs.pop("errors", None)
+    kwargs.setdefault("capture_output", True)
+
+    proc = subprocess.run(cmd, **kwargs)
+    stdout_str = _safe_decode(proc.stdout)
+    stderr_str = _safe_decode(proc.stderr)
+
+    return subprocess.CompletedProcess(
+        args=proc.args,
+        returncode=proc.returncode,
+        stdout=stdout_str,
+        stderr=stderr_str,
+    )
 
 
 def get_user_fallback_uv_paths() -> List[Path]:
@@ -96,12 +139,10 @@ class EnvBackend(ABC):
                 actual_cmd[0] = str(cand_exe)
 
         try:
-            proc = subprocess.run(
+            proc = _safe_run(
                 actual_cmd,
                 cwd=str(venv_dir),
                 env=env,
-                capture_output=True,
-                text=True,
             )
             return ExecutionResult(
                 success=(proc.returncode == 0),
@@ -160,7 +201,7 @@ class UvBackend(EnvBackend):
             cmd.append("--system-site-packages")
 
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = _safe_run(cmd)
             return ExecutionResult(
                 success=(proc.returncode == 0),
                 returncode=proc.returncode,
@@ -196,7 +237,7 @@ class UvBackend(EnvBackend):
         cmd.extend(pkg_list)
 
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = _safe_run(cmd)
             return ExecutionResult(
                 success=(proc.returncode == 0),
                 returncode=proc.returncode,
@@ -215,7 +256,7 @@ class UvBackend(EnvBackend):
         python_exe = get_venv_python_executable(venv_dir)
         cmd = [self._uv_path, "pip", "list", "--python", str(python_exe)]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = _safe_run(cmd)
             return ExecutionResult(
                 success=(proc.returncode == 0),
                 returncode=proc.returncode,
@@ -245,10 +286,8 @@ def _resolve_python_cmd(python_executable: str) -> Optional[List[str]]:
         py_launcher = shutil.which("py")
         if py_launcher:
             try:
-                check = subprocess.run(
-                    [py_launcher, f"-{python_executable}", "-c", "import sys"],
-                    capture_output=True,
-                    text=True,
+                check = _safe_run(
+                    [py_launcher, f"-{python_executable}", "-c", "import sys"]
                 )
                 if check.returncode == 0:
                     return [py_launcher, f"-{python_executable}"]
@@ -270,14 +309,12 @@ def _resolve_python_cmd(python_executable: str) -> Optional[List[str]]:
         found_cmd = shutil.which(cand_cmd)
         if found_cmd:
             try:
-                proc = subprocess.run(
+                proc = _safe_run(
                     [
                         found_cmd,
                         "-c",
                         "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
-                    ],
-                    capture_output=True,
-                    text=True,
+                    ]
                 )
                 if proc.returncode == 0 and proc.stdout.strip() == python_executable.strip():
                     return [found_cmd]
@@ -313,7 +350,7 @@ class BuiltinBackend(EnvBackend):
                 cmd = resolved_cmd + ["-m", "venv", str(venv_dir)]
                 if system_site_packages:
                     cmd.append("--system-site-packages")
-                proc = subprocess.run(cmd, capture_output=True, text=True)
+                proc = _safe_run(cmd)
                 return ExecutionResult(
                     success=(proc.returncode == 0),
                     returncode=proc.returncode,
@@ -376,7 +413,7 @@ class BuiltinBackend(EnvBackend):
         cmd.extend(pkg_list)
 
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = _safe_run(cmd)
             return ExecutionResult(
                 success=(proc.returncode == 0),
                 returncode=proc.returncode,
@@ -395,7 +432,7 @@ class BuiltinBackend(EnvBackend):
         python_exe = get_venv_python_executable(venv_dir)
         cmd = [str(python_exe), "-m", "pip", "list"]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = _safe_run(cmd)
             return ExecutionResult(
                 success=(proc.returncode == 0),
                 returncode=proc.returncode,
