@@ -202,6 +202,16 @@ def test_extract_py_version_from_dll_variants(tmp_path):
         ver = _extract_py_version_from_dll(cand_python3_dlls[0])
         assert ver is not None
 
+    # 5. Linux shared library (e.g. libpython3.10.so or libpython3.12.so.1.0)
+    f5 = tmp_path / "libpython3.10.so"
+    assert _extract_py_version_from_dll(f5) == "3.10"
+    f6 = tmp_path / "libpython3.12.so.1.0"
+    assert _extract_py_version_from_dll(f6) == "3.12"
+
+    # 6. macOS dynamic library (e.g. libpython3.11.dylib)
+    f7 = tmp_path / "libpython3.11.dylib"
+    assert _extract_py_version_from_dll(f7) == "3.11"
+
 
 def test_get_venv_python_version(tmp_path):
     venv = tmp_path / "venv"

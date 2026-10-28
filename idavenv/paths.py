@@ -10,11 +10,18 @@ from typing import List, Optional, Union
 
 
 def _extract_py_version_from_dll(dll_path: Path) -> Optional[str]:
-    """Extracts Python major.minor version from a python DLL filename (e.g. python314.dll -> 3.14)."""
+    """Extracts Python major.minor version from a python DLL or shared library filename (e.g. python314.dll -> 3.14, libpython3.10.so -> 3.10)."""
+    name = dll_path.name.lower()
+    # 1. Match dotted versions common in Linux/macOS shared libraries (e.g. libpython3.10.so, libpython3.12.so.1.0, libpython3.11.dylib)
+    m_dotted = re.search(r"python(\d+)\.(\d+)", name)
+    if m_dotted:
+        return f"{m_dotted.group(1)}.{m_dotted.group(2)}"
+
+    # 2. Match compact versions common in Windows DLLs (e.g. python314.dll, python310.dll)
     stem = dll_path.stem.lower()
-    m = re.search(r"python(\d)(\d+)", stem)
-    if m:
-        return f"{m.group(1)}.{m.group(2)}"
+    m_compact = re.search(r"python(\d)(\d+)", stem)
+    if m_compact:
+        return f"{m_compact.group(1)}.{m_compact.group(2)}"
 
     # If it is python3.dll, extract real version from Windows PE version resource
     if stem == "python3" and sys.platform == "win32" and dll_path.exists():
